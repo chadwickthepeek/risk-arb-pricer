@@ -778,7 +778,7 @@ with tab2:
                         return profile_colors.get(val, "")
 
                     st.dataframe(
-                        df_strat.style.applymap(color_profile, subset=["Profil"]),
+                        df_strat.style.map(color_profile, subset=["Profil"]),
                         use_container_width=True, hide_index=True
                     )
 
