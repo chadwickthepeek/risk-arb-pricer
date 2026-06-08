@@ -791,75 +791,94 @@ with tab2:
                     col_s1, col_s2 = st.columns(2)
 
                     with col_s1:
-                        # Rationale
+                        # Rationale — fond clair, texte foncé
                         st.markdown(
-                            f"<div style='background:#1a2a1a;border-left:4px solid #00d4aa;"
-                            f"padding:12px;border-radius:6px;margin-bottom:12px'>"
-                            f"<b style='color:#00d4aa'>Raisonnement</b><br/>"
-                            f"<span style='color:#ccc;font-size:13px'>{sel.rationale}</span>"
+                            f"<div style='background:#f0f7ff;border-left:4px solid #2E75B6;"
+                            f"padding:14px;border-radius:6px;margin-bottom:14px'>"
+                            f"<b style='color:#1F3864;font-size:14px'>💡 Raisonnement</b><br/>"
+                            f"<span style='color:#333;font-size:13px;line-height:1.6'>{sel.rationale}</span>"
                             f"</div>", unsafe_allow_html=True)
 
-                        # Jambes de la stratégie
+                        # Jambes de la stratégie — tableau lisible
                         st.markdown("**Jambes de la position :**")
+                        legs_data = []
                         for leg in sel.legs:
-                            action_col = "#54c768" if leg.action=="buy" else "#e05c5c"
-                            action_lbl = "ACHAT" if leg.action=="buy" else "VENTE"
-                            st.markdown(
-                                f"<div style='background:#1e2130;padding:8px 12px;"
-                                f"border-radius:6px;margin-bottom:6px'>"
-                                f"<span style='color:{action_col};font-weight:700'>{action_lbl}</span> "
-                                f"{leg.opt_type.upper()} strike <b>{leg.strike:.2f}$</b> "
-                                f"| Prime: <b>{leg.premium:.3f}$</b> "
-                                f"| IV: {leg.iv*100:.1f}% "
-                                f"| δ: {leg.delta:.3f}"
-                                f"</div>", unsafe_allow_html=True)
+                            action_lbl = "🟢 ACHAT" if leg.action=="buy" else "🔴 VENTE"
+                            legs_data.append({
+                                "Action": action_lbl,
+                                "Type": leg.opt_type.upper(),
+                                "Strike ($)": f"{leg.strike:.2f}",
+                                "Prime ($)": f"{leg.premium:.3f}",
+                                "IV (%)": f"{leg.iv*100:.1f}",
+                                "Delta": f"{leg.delta:.3f}",
+                            })
+                        st.dataframe(pd.DataFrame(legs_data),
+                                     use_container_width=True, hide_index=True)
 
                         # Greeks nets
+                        st.markdown("**Greeks nets de la position combinée :**")
                         g1, g2, g3, g4 = st.columns(4)
-                        g1.metric("Δ Net", f"{sel.net_delta:.3f}")
-                        g2.metric("Γ Net", f"{sel.net_gamma:.4f}")
-                        g3.metric("Θ/j ($)", f"{sel.net_theta*n_shares:.2f}")
-                        g4.metric("ν (vega)", f"{sel.net_vega:.3f}")
+                        g1.metric("Δ Delta", f"{sel.net_delta:.3f}",
+                                  help="Sensibilité au prix de l'action")
+                        g2.metric("Γ Gamma", f"{sel.net_gamma:.4f}",
+                                  help="Convexité du delta")
+                        g3.metric("Θ/jour", f"${sel.net_theta*n_shares:.0f}",
+                                  help="Gain/perte par jour qui passe")
+                        g4.metric("ν Vega", f"{sel.net_vega:.3f}",
+                                  help="Sensibilité à la volatilité")
 
                     with col_s2:
-                        # P&L profile à expiration
+                        # P&L profile — graphique épuré, plage restreinte autour du deal
                         px_range, pnl_vals = builder.pnl_profile(sel, include_stock=False)
                         px_range_stock, pnl_stock = builder.pnl_profile(sel, include_stock=True)
-
-                        fig_pnl = go.Figure()
-                        # Options seules
-                        fig_pnl.add_trace(go.Scatter(
-                            x=px_range, y=pnl_vals,
-                            name="Options seules", line=dict(color="#4c78a8", width=2)))
-                        # Position combinée (action + options)
-                        fig_pnl.add_trace(go.Scatter(
-                            x=px_range_stock, y=pnl_stock,
-                            name="Action + Options", line=dict(color="#00d4aa", width=2, dash="dot")))
-                        # Sans hedge (action seule)
                         import numpy as np
                         pnl_no_hedge = [p - spot_live for p in px_range]
+
+                        fig_pnl = go.Figure()
+                        fig_pnl.add_trace(go.Scatter(
+                            x=px_range_stock, y=pnl_stock,
+                            name="Avec hedge", fill="tozeroy",
+                            fillcolor="rgba(0,180,160,0.12)",
+                            line=dict(color="#00b4a0", width=2.5)))
                         fig_pnl.add_trace(go.Scatter(
                             x=px_range, y=pnl_no_hedge,
-                            name="Sans hedge", line=dict(color="#888", width=1, dash="dash")))
+                            name="Sans hedge",
+                            line=dict(color="#aaaaaa", width=1.5, dash="dot")))
 
+                        # Lignes clés sans annotation superposée
                         fig_pnl.add_vline(x=deal_price_in, line_dash="dash",
-                                          line_color="#00d4aa",
-                                          annotation_text=f"Deal {deal_price_in:.2f}$")
+                                          line_color="#00b4a0", line_width=1.5)
                         fig_pnl.add_vline(x=bp, line_dash="dash",
-                                          line_color="#e05c5c",
-                                          annotation_text=f"Break {bp:.2f}$")
+                                          line_color="#e05c5c", line_width=1.5)
                         fig_pnl.add_vline(x=spot_live, line_dash="dot",
-                                          line_color="#f5a623",
-                                          annotation_text=f"Spot {spot_live:.2f}$")
-                        fig_pnl.add_hline(y=0, line_color="#555", line_width=1)
+                                          line_color="#f5a623", line_width=1.5)
+                        fig_pnl.add_hline(y=0, line_color="#666", line_width=1)
+
+                        # Légende des lignes en annotation unique en bas
+                        fig_pnl.add_annotation(
+                            x=deal_price_in, y=0,
+                            text=f"Deal<br>{deal_price_in:.0f}$",
+                            showarrow=False, yanchor="top", yshift=-5,
+                            font=dict(color="#00b4a0", size=10))
+                        fig_pnl.add_annotation(
+                            x=bp, y=0,
+                            text=f"Break<br>{bp:.0f}$",
+                            showarrow=False, yanchor="top", yshift=-5,
+                            font=dict(color="#e05c5c", size=10))
+                        fig_pnl.add_annotation(
+                            x=spot_live, y=0,
+                            text=f"Spot<br>{spot_live:.0f}$",
+                            showarrow=False, yanchor="top", yshift=-5,
+                            font=dict(color="#f5a623", size=10))
 
                         fig_pnl.update_layout(
-                            title="Profil P&L à expiration ($/action)",
-                            xaxis_title="Prix action ($)",
+                            title="P&L à expiration ($/action)",
+                            xaxis_title="Prix ($)",
                             yaxis_title="P&L ($)",
-                            template="plotly_dark", height=380,
-                            margin=dict(l=40,r=40,t=50,b=40),
-                            legend=dict(x=0, y=1))
+                            xaxis=dict(range=[bp*0.85, deal_price_in*1.05]),
+                            template="plotly_white", height=380,
+                            margin=dict(l=40, r=20, t=50, b=60),
+                            legend=dict(orientation="h", y=-0.2, x=0))
                         st.plotly_chart(fig_pnl, use_container_width=True)
 
                     # ── Recalcul P&L avec hedge ───────────────────────────
@@ -1288,8 +1307,7 @@ La plupart des fonds utilisent ¼ à ½ Kelly.
         ("Bates & Lemmon (2003)", "Breaking Up Is Hard to Do? An Analysis of Termination Fee Provisions", "Journal of Financial Economics"),
         ("Giglio & Xiu (2021)", "Asset Pricing with Omitted Factors", "Journal of Political Economy"),
         ("Lando (2004)", "Credit Risk Modeling: Theory and Applications", "Princeton University Press"),
-        ("Jetley & Ji (2010)", "The Shrinking Merger Arbitrage Spread", "Financial Analysts Journal"),
-        ("Kelly (1956)", "A New Interpretation of Information Rate", "Bell System Technical Journal"),
+        ("Jetley & Ji (2010)", "The Shrinking Merger Arbitrage Spread", "Financial Analysts Journal"),        ("Kelly (1956)", "A New Interpretation of Information Rate", "Bell System Technical Journal"),
         ("Thorp (1969)", "Optimal Gambling Systems for Favorable Games", "Revue de l'Institut de Statistique"),
         ("Wollmann (2020)", "Stealth Consolidation: Evidence from an Amendment to the Hart-Scott-Rodino Act", "American Economic Review"),
         ("Ziemba & MacLean (2011)", "The Kelly Capital Growth Investment Criterion", "World Scientific"),
@@ -1298,7 +1316,5 @@ La plupart des fonds utilisent ¼ à ½ Kelly.
     for author, title, journal in refs:
         st.markdown(f"- **{author}** — *{title}* — {journal}")
 
-
-# ── Footer ─────────────────────────────────────────────────────────────────────
 st.divider()
-st.caption("⚡ Risk Arb Pricer — Données via yfinance · Modèles: options-implied, ML hybride, Kelly, Hazard, VaR Monte Carlo")
+st.caption("⚡ Risk Arb Pricer — Données via Bloomberg / yfinance · Modèles: options-implied, ML hybride, Kelly, Hazard, VaR Monte Carlo")
