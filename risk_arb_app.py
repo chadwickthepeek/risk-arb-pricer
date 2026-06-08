@@ -687,6 +687,261 @@ with tab2:
                     margin=dict(l=40,r=40,t=50,b=40))
                 st.plotly_chart(fig_sens, use_container_width=True)
 
+                # ── SECTION HEDGES & OPTIONS ─────────────────────────────
+                st.divider()
+                st.markdown("## 🛡️ Hedges & Stratégies Options")
+
+                from models import (BloombergFetcher, BlackScholes,
+                                    OptionStrategyBuilder, HedgeRecommender)
+
+                # Statut source de données
+                bbg_ok = BloombergFetcher.is_available()
+                src_label = "🟢 Bloomberg Terminal connecté" if bbg_ok else "🟡 yfinance (Bloomberg non détecté)"
+                st.caption(f"Source options : {src_label}")
+
+                # Volatilité implicite
+                col_iv1, col_iv2, col_iv3 = st.columns(3)
+                with col_iv1:
+                    iv_input = st.number_input(
+                        "Volatilité implicite (%)",
+                        value=30.0, min_value=5.0, max_value=150.0, step=1.0,
+                        help="Récupérée automatiquement si Bloomberg connecté. Sinon entrez manuellement."
+                    ) / 100
+                with col_iv2:
+                    profile_sel = st.select_slider(
+                        "Profil de risque",
+                        options=["conservateur", "modéré", "agressif"],
+                        value="modéré"
+                    )
+                with col_iv3:
+                    capital_opt = st.number_input(
+                        "Capital à couvrir ($)",
+                        value=100000, step=10000
+                    )
+
+                # Récupérer IV Bloomberg si disponible
+                if bbg_ok:
+                    vol_surface = BloombergFetcher.get_implied_vol_surface(ticker_input)
+                    if vol_surface:
+                        atm_iv = vol_surface.get("30DAY_IMPVOL_100%MNY_DF", iv_input)
+                        iv_input = atm_iv
+                        st.caption(f"IV ATM 30j Bloomberg : {atm_iv*100:.1f}%")
+
+                # Construire les stratégies
+                builder = OptionStrategyBuilder(
+                    spot=spot_live, deal_price=deal_price_in,
+                    break_price=bp, days_remaining=int(days_in),
+                    rfr=rfr, iv=iv_input, ticker=ticker_input
+                )
+
+                strategies = HedgeRecommender.recommend(
+                    builder, res.p_close_final, res.regulatory_score, profile_sel
+                )
+
+                if not strategies:
+                    st.warning("Impossible de calculer les stratégies pour ce deal.")
+                else:
+                    # ── Tableau comparatif des stratégies ────────────────
+                    st.markdown(f"### Stratégies recommandées — profil **{profile_sel}**")
+
+                    n_shares = max(1, int(capital_opt / spot_live))
+                    spread_brut = deal_price_in - spot_live
+
+                    strat_rows = []
+                    for s in strategies:
+                        cost_total = s.net_premium * n_shares
+                        pnl_success = (s.max_gain * n_shares) if spread_brut > 0 else 0
+                        pnl_break   = (-s.net_premium * n_shares)
+                        roi = pnl_success / max(cost_total, 1) if cost_total > 0 else 0
+                        strat_rows.append({
+                            "Stratégie": s.name,
+                            "Profil": s.profile,
+                            "Coût/action ($)": round(s.net_premium, 3),
+                            "Coût total ($)": round(cost_total, 0),
+                            "Gain max/action ($)": round(s.max_gain, 2),
+                            "Perte max/action ($)": round(s.max_loss, 2),
+                            "Breakeven ($)": round(s.breakeven, 2),
+                            "ROI si deal ✅": f"{roi:.1f}x",
+                            "Delta": round(s.net_delta, 3),
+                            "Theta/j ($)": round(s.net_theta * n_shares, 2),
+                        })
+
+                    df_strat = pd.DataFrame(strat_rows)
+
+                    profile_colors = {
+                        "conservateur": "background-color:#003d2e;color:#00d4aa",
+                        "modéré":       "background-color:#2e2e00;color:#f5a623",
+                        "agressif":     "background-color:#3d0000;color:#e05c5c",
+                    }
+
+                    def color_profile(val):
+                        return profile_colors.get(val, "")
+
+                    st.dataframe(
+                        df_strat.style.applymap(color_profile, subset=["Profil"]),
+                        use_container_width=True, hide_index=True
+                    )
+
+                    # ── Sélecteur de stratégie pour analyse détaillée ────
+                    st.markdown("### 🔬 Analyse détaillée d'une stratégie")
+                    strat_names = [s.name for s in strategies]
+                    selected_name = st.selectbox("Choisir une stratégie", strat_names)
+                    sel = next(s for s in strategies if s.name == selected_name)
+
+                    col_s1, col_s2 = st.columns(2)
+
+                    with col_s1:
+                        # Rationale
+                        st.markdown(
+                            f"<div style='background:#1a2a1a;border-left:4px solid #00d4aa;"
+                            f"padding:12px;border-radius:6px;margin-bottom:12px'>"
+                            f"<b style='color:#00d4aa'>Raisonnement</b><br/>"
+                            f"<span style='color:#ccc;font-size:13px'>{sel.rationale}</span>"
+                            f"</div>", unsafe_allow_html=True)
+
+                        # Jambes de la stratégie
+                        st.markdown("**Jambes de la position :**")
+                        for leg in sel.legs:
+                            action_col = "#54c768" if leg.action=="buy" else "#e05c5c"
+                            action_lbl = "ACHAT" if leg.action=="buy" else "VENTE"
+                            st.markdown(
+                                f"<div style='background:#1e2130;padding:8px 12px;"
+                                f"border-radius:6px;margin-bottom:6px'>"
+                                f"<span style='color:{action_col};font-weight:700'>{action_lbl}</span> "
+                                f"{leg.opt_type.upper()} strike <b>{leg.strike:.2f}$</b> "
+                                f"| Prime: <b>{leg.premium:.3f}$</b> "
+                                f"| IV: {leg.iv*100:.1f}% "
+                                f"| δ: {leg.delta:.3f}"
+                                f"</div>", unsafe_allow_html=True)
+
+                        # Greeks nets
+                        g1, g2, g3, g4 = st.columns(4)
+                        g1.metric("Δ Net", f"{sel.net_delta:.3f}")
+                        g2.metric("Γ Net", f"{sel.net_gamma:.4f}")
+                        g3.metric("Θ/j ($)", f"{sel.net_theta*n_shares:.2f}")
+                        g4.metric("ν (vega)", f"{sel.net_vega:.3f}")
+
+                    with col_s2:
+                        # P&L profile à expiration
+                        px_range, pnl_vals = builder.pnl_profile(sel, include_stock=False)
+                        px_range_stock, pnl_stock = builder.pnl_profile(sel, include_stock=True)
+
+                        fig_pnl = go.Figure()
+                        # Options seules
+                        fig_pnl.add_trace(go.Scatter(
+                            x=px_range, y=pnl_vals,
+                            name="Options seules", line=dict(color="#4c78a8", width=2)))
+                        # Position combinée (action + options)
+                        fig_pnl.add_trace(go.Scatter(
+                            x=px_range_stock, y=pnl_stock,
+                            name="Action + Options", line=dict(color="#00d4aa", width=2, dash="dot")))
+                        # Sans hedge (action seule)
+                        import numpy as np
+                        pnl_no_hedge = [p - spot_live for p in px_range]
+                        fig_pnl.add_trace(go.Scatter(
+                            x=px_range, y=pnl_no_hedge,
+                            name="Sans hedge", line=dict(color="#888", width=1, dash="dash")))
+
+                        fig_pnl.add_vline(x=deal_price_in, line_dash="dash",
+                                          line_color="#00d4aa",
+                                          annotation_text=f"Deal {deal_price_in:.2f}$")
+                        fig_pnl.add_vline(x=bp, line_dash="dash",
+                                          line_color="#e05c5c",
+                                          annotation_text=f"Break {bp:.2f}$")
+                        fig_pnl.add_vline(x=spot_live, line_dash="dot",
+                                          line_color="#f5a623",
+                                          annotation_text=f"Spot {spot_live:.2f}$")
+                        fig_pnl.add_hline(y=0, line_color="#555", line_width=1)
+
+                        fig_pnl.update_layout(
+                            title="Profil P&L à expiration ($/action)",
+                            xaxis_title="Prix action ($)",
+                            yaxis_title="P&L ($)",
+                            template="plotly_dark", height=380,
+                            margin=dict(l=40,r=40,t=50,b=40),
+                            legend=dict(x=0, y=1))
+                        st.plotly_chart(fig_pnl, use_container_width=True)
+
+                    # ── Recalcul P&L avec hedge ───────────────────────────
+                    st.markdown("### 📊 Recalcul du P&L avec le hedge")
+
+                    cost_hedge = sel.net_premium * n_shares
+                    pnl_success_hedge = (deal_price_in - spot_live - sel.net_premium) * n_shares
+                    pnl_break_hedge   = (bp - spot_live + sel.max_gain + sel.net_premium - sel.net_premium) * n_shares
+
+                    # Recalculer correctement selon la stratégie
+                    # À expiration si deal price atteint
+                    opt_payoff_success = sum(
+                        (max(deal_price_in - leg.strike, 0) if leg.opt_type=="call"
+                         else max(leg.strike - deal_price_in, 0))
+                        * (1 if leg.action=="buy" else -1) * leg.quantity
+                        - (leg.premium if leg.action=="buy" else -leg.premium)
+                        for leg in sel.legs
+                    )
+                    opt_payoff_break = sum(
+                        (max(bp - leg.strike, 0) if leg.opt_type=="call"
+                         else max(leg.strike - bp, 0))
+                        * (1 if leg.action=="buy" else -1) * leg.quantity
+                        - (leg.premium if leg.action=="buy" else -leg.premium)
+                        for leg in sel.legs
+                    )
+
+                    pnl_s_with  = (deal_price_in - spot_live + opt_payoff_success) * n_shares
+                    pnl_s_with  = round(pnl_s_with, 0)
+                    pnl_b_with  = (bp - spot_live + opt_payoff_break) * n_shares
+                    pnl_b_with  = round(pnl_b_with, 0)
+                    pnl_s_base  = (deal_price_in - spot_live) * n_shares
+                    pnl_b_base  = (bp - spot_live) * n_shares
+                    exp_with    = res.p_close_final * pnl_s_with + (1-res.p_close_final) * pnl_b_with
+                    exp_base    = res.p_close_final * pnl_s_base + (1-res.p_close_final) * pnl_b_base
+
+                    recap = [
+                        ["Scénario", "Sans hedge ($)", "Avec hedge ($)", "Différence ($)"],
+                        ["✅ Deal réussi",
+                         f"+{pnl_s_base:,.0f}", f"+{pnl_s_with:,.0f}",
+                         f"{pnl_s_with-pnl_s_base:+,.0f}"],
+                        ["❌ Deal breake",
+                         f"{pnl_b_base:,.0f}", f"{pnl_b_with:,.0f}",
+                         f"{pnl_b_with-pnl_b_base:+,.0f}"],
+                        ["⚖️  P&L espéré",
+                         f"{exp_base:+,.0f}", f"{exp_with:+,.0f}",
+                         f"{exp_with-exp_base:+,.0f}"],
+                        ["💰 Coût hedge", "—", f"-{cost_hedge:,.0f}", f"-{cost_hedge:,.0f}"],
+                    ]
+
+                    recap_df = pd.DataFrame(recap[1:], columns=recap[0])
+                    st.dataframe(recap_df, use_container_width=True, hide_index=True)
+
+                    col_recap1, col_recap2, col_recap3 = st.columns(3)
+                    col_recap1.metric("Coût hedge", f"${cost_hedge:,.0f}",
+                                      f"{cost_hedge/capital_opt*100:.1f}% du capital")
+                    col_recap2.metric("Protection break",
+                                      f"${pnl_b_with-pnl_b_base:+,.0f}",
+                                      "gain vs sans hedge")
+                    col_recap3.metric("Impact sur P&L espéré",
+                                      f"${exp_with-exp_base:+,.0f}",
+                                      "coût de l'assurance")
+
+                    # Bar chart comparatif
+                    fig_comp = go.Figure()
+                    scenarios_lbl = ["✅ Deal réussi", "❌ Deal breake", "⚖️ Espéré"]
+                    vals_base = [pnl_s_base, pnl_b_base, exp_base]
+                    vals_hedge = [pnl_s_with, pnl_b_with, exp_with]
+
+                    fig_comp.add_trace(go.Bar(
+                        name="Sans hedge", x=scenarios_lbl, y=vals_base,
+                        marker_color=["#54c768","#e05c5c","#f5a623"], opacity=0.6))
+                    fig_comp.add_trace(go.Bar(
+                        name=f"Avec {sel.name}", x=scenarios_lbl, y=vals_hedge,
+                        marker_color=["#00d4aa","#ff8c69","#ffd700"]))
+
+                    fig_comp.update_layout(
+                        barmode="group",
+                        title=f"Comparaison P&L — {n_shares:,} actions",
+                        yaxis_title="P&L ($)", template="plotly_dark", height=320,
+                        margin=dict(l=40,r=40,t=50,b=40))
+                    st.plotly_chart(fig_comp, use_container_width=True)
+
 
 # ────────────────────────────────────────────────────────────────────────────
 # TAB 3 — PORTEFEUILLE
