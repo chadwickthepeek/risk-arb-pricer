@@ -32,32 +32,225 @@ from models import (
 
 # ── Page config ────────────────────────────────────────────────────────────────
 st.set_page_config(
-    page_title="Risk Arb Pricer",
+    page_title="Risk Arb Pricer | Bloomberg Style",
     page_icon="⚡",
     layout="wide",
     initial_sidebar_state="expanded",
 )
 
-# ── Custom CSS ─────────────────────────────────────────────────────────────────
+# ── Bloomberg Terminal CSS ──────────────────────────────────────────────────────
 st.markdown("""
 <style>
-  .main { background: #0e1117; }
-  .stTabs [data-baseweb="tab"] { font-size: 15px; font-weight: 600; }
-  .metric-card {
-    background: #1e2130; border-radius: 10px; padding: 16px 20px;
-    border-left: 4px solid #4c78a8; margin-bottom: 8px;
+  /* Base */
+  .stApp, .main, section[data-testid="stSidebar"] {
+    background-color: #0a0a0a !important;
+    color: #e0e0e0 !important;
+    font-family: 'Consolas', 'Courier New', monospace !important;
   }
-  .signal-strong { color: #00d4aa; font-weight: 800; font-size: 18px; }
-  .signal-buy    { color: #54c768; font-weight: 700; }
-  .signal-hold   { color: #f5a623; font-weight: 700; }
-  .signal-pass   { color: #e05c5c; font-weight: 700; }
-  .model-box {
-    background: #1a1e2e; border-radius: 8px; padding: 16px;
-    border: 1px solid #2d3250; margin-bottom: 12px;
+
+  /* Header Bloomberg orange bar */
+  .bbg-header {
+    background: #1a1a1a;
+    border-bottom: 2px solid #FF6600;
+    padding: 8px 16px;
+    font-family: 'Consolas', monospace;
+    font-size: 11px;
+    color: #FF6600;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    margin-bottom: 12px;
   }
-  div[data-testid="stMetricValue"] { font-size: 22px !important; }
+
+  /* Section titles */
+  .bbg-section {
+    background: #1a1a1a;
+    border-left: 3px solid #FF6600;
+    padding: 5px 12px;
+    font-size: 11px;
+    font-weight: 700;
+    color: #FF6600;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    margin: 12px 0 8px 0;
+  }
+
+  /* Metric cards */
+  .bbg-card {
+    background: #111111;
+    border: 1px solid #2a2a2a;
+    border-top: 2px solid #FF6600;
+    padding: 10px 14px;
+    font-family: 'Consolas', monospace;
+  }
+  .bbg-card-label {
+    font-size: 9px;
+    color: #888;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    margin-bottom: 2px;
+  }
+  .bbg-card-value {
+    font-size: 20px;
+    font-weight: 700;
+    color: #e0e0e0;
+    font-family: 'Consolas', monospace;
+  }
+  .bbg-card-value.pos { color: #00c853; }
+  .bbg-card-value.neg { color: #ff1744; }
+  .bbg-card-sub {
+    font-size: 10px;
+    color: #666;
+    margin-top: 2px;
+  }
+
+  /* Signal badges */
+  .sig-strong { background:#003322; color:#00c853; border:1px solid #00c853;
+    padding:4px 10px; font-size:11px; font-weight:700; letter-spacing:1px; }
+  .sig-buy    { background:#002211; color:#00e676; border:1px solid #00e676;
+    padding:4px 10px; font-size:11px; font-weight:700; }
+  .sig-hold   { background:#1a1200; color:#FF6600; border:1px solid #FF6600;
+    padding:4px 10px; font-size:11px; font-weight:700; }
+  .sig-pass   { background:#220000; color:#ff1744; border:1px solid #ff1744;
+    padding:4px 10px; font-size:11px; font-weight:700; }
+
+  /* Ticker bar */
+  .bbg-ticker {
+    background: #111; border: 1px solid #2a2a2a;
+    padding: 8px 16px; font-family: 'Consolas', monospace;
+    font-size: 13px; color: #fff; margin-bottom: 10px;
+    display: flex; gap: 24px; align-items: center;
+  }
+
+  /* Tabs */
+  .stTabs [data-baseweb="tab-list"] {
+    background: #0a0a0a !important;
+    border-bottom: 1px solid #FF6600 !important;
+    gap: 0px;
+  }
+  .stTabs [data-baseweb="tab"] {
+    background: #111 !important;
+    color: #888 !important;
+    font-size: 11px !important;
+    font-weight: 700 !important;
+    letter-spacing: 1px !important;
+    text-transform: uppercase !important;
+    padding: 8px 20px !important;
+    border: 1px solid #222 !important;
+    border-bottom: none !important;
+    font-family: 'Consolas', monospace !important;
+  }
+  .stTabs [aria-selected="true"] {
+    background: #FF6600 !important;
+    color: #000 !important;
+  }
+
+  /* Sidebar */
+  section[data-testid="stSidebar"] {
+    background: #0d0d0d !important;
+    border-right: 1px solid #FF6600 !important;
+  }
+  section[data-testid="stSidebar"] label,
+  section[data-testid="stSidebar"] .stMarkdown p {
+    color: #aaa !important;
+    font-size: 11px !important;
+    font-family: 'Consolas', monospace !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.5px !important;
+  }
+
+  /* Metrics */
+  div[data-testid="stMetricValue"] {
+    font-size: 20px !important;
+    font-weight: 700 !important;
+    font-family: 'Consolas', monospace !important;
+    color: #e0e0e0 !important;
+  }
+  div[data-testid="stMetricLabel"] {
+    font-size: 9px !important;
+    color: #666 !important;
+    text-transform: uppercase !important;
+    letter-spacing: 1px !important;
+  }
+  div[data-testid="stMetricDelta"] { font-size: 11px !important; }
+
+  /* Dataframe */
+  .stDataFrame { border: 1px solid #2a2a2a !important; }
+  .stDataFrame th {
+    background: #1a1a1a !important;
+    color: #FF6600 !important;
+    font-size: 9px !important;
+    text-transform: uppercase !important;
+    letter-spacing: 1px !important;
+    font-family: 'Consolas', monospace !important;
+    border-bottom: 1px solid #FF6600 !important;
+  }
+  .stDataFrame td {
+    font-family: 'Consolas', monospace !important;
+    font-size: 11px !important;
+    color: #ccc !important;
+    background: #0d0d0d !important;
+    border-bottom: 1px solid #1a1a1a !important;
+  }
+
+  /* Inputs */
+  .stTextInput input, .stNumberInput input, .stSelectbox select {
+    background: #111 !important;
+    color: #e0e0e0 !important;
+    border: 1px solid #333 !important;
+    font-family: 'Consolas', monospace !important;
+    font-size: 13px !important;
+  }
+  .stSlider [data-baseweb="slider"] { color: #FF6600 !important; }
+
+  /* Divider */
+  hr { border-color: #2a2a2a !important; }
+
+  /* Info/warning boxes */
+  .stAlert { background: #111 !important; border: 1px solid #333 !important; }
+
+  /* Buttons */
+  .stButton button {
+    background: #FF6600 !important;
+    color: #000 !important;
+    font-family: 'Consolas', monospace !important;
+    font-weight: 700 !important;
+    letter-spacing: 1px !important;
+    text-transform: uppercase !important;
+    border: none !important;
+    font-size: 11px !important;
+  }
+  .stButton button:hover {
+    background: #cc5200 !important;
+  }
+
+  /* Expander */
+  .streamlit-expanderHeader {
+    background: #111 !important;
+    color: #FF6600 !important;
+    font-family: 'Consolas', monospace !important;
+    font-size: 11px !important;
+    border: 1px solid #2a2a2a !important;
+  }
+
+  /* Caption */
+  .stCaption { color: #555 !important; font-family: 'Consolas', monospace !important;
+               font-size: 10px !important; }
+
+  /* Hide Streamlit branding */
+  #MainMenu, footer, header { visibility: hidden; }
 </style>
 """, unsafe_allow_html=True)
+
+# ── Bloomberg header bar ────────────────────────────────────────────────────────
+now = datetime.datetime.now().strftime("%d/%m/%Y  %H:%M:%S")
+st.markdown(
+    f"<div class='bbg-header'>"
+    f"⚡ RISK ARB PRICER &nbsp;|&nbsp; EVENT-DRIVEN EQUITY &nbsp;|&nbsp; "
+    f"M&A · SPIN-OFF · RESTRUCTURING · SPAC &nbsp;|&nbsp; "
+    f"<span style='color:#aaa'>{now}</span>"
+    f"</div>",
+    unsafe_allow_html=True
+)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -227,23 +420,24 @@ def build_deal_from_row(row: pd.Series, spot: float, deal_price: float,
 # ══════════════════════════════════════════════════════════════════════════════
 
 with st.sidebar:
-    st.markdown("## ⚡ Risk Arb Pricer")
-    st.caption(f"Mise à jour: {datetime.datetime.now().strftime('%d/%m/%Y %H:%M')}")
-    st.divider()
+    st.markdown(
+        "<div style='color:#FF6600;font-family:Consolas,monospace;font-size:14px;"
+        "font-weight:700;letter-spacing:2px;padding:8px 0;border-bottom:1px solid #FF6600;"
+        "margin-bottom:12px'>⚡ RISK ARB PRICER</div>",
+        unsafe_allow_html=True)
 
-    st.markdown("### ⚙️ Paramètres globaux")
-    rfr = st.number_input("Taux sans risque (%)", value=4.5, step=0.1, format="%.1f") / 100
+    st.markdown("<div class='bbg-section'>PARAMÈTRES</div>", unsafe_allow_html=True)
+    rfr = st.number_input("Risk-free rate (%)", value=4.5, step=0.1, format="%.1f") / 100
     kelly_cap = st.slider("Kelly cap (%)", 5, 50, 20, step=5) / 100
-    kelly_frac = st.select_slider("Fraction Kelly", options=[0.25, 0.5, 0.75, 1.0],
+    kelly_frac = st.select_slider("Kelly fraction", options=[0.25, 0.5, 0.75, 1.0],
                                    value=0.5, format_func=lambda x: f"{x:.0%}")
     st.divider()
 
-    st.markdown("### 📂 Fichier M&A Monitor")
-    monitor_file = st.file_uploader("Charger un nouveau Monitor", type=["xlsx"],
-                                     help="Format: M&A Monitor Excel avec onglet SUMMARY")
+    st.markdown("<div class='bbg-section'>M&A MONITOR</div>", unsafe_allow_html=True)
+    monitor_file = st.file_uploader("Upload Monitor (.xlsx)", type=["xlsx"])
     st.divider()
 
-    st.markdown("### 🔄 Auto-refresh")
+    st.markdown("<div class='bbg-section'>AUTO-REFRESH</div>", unsafe_allow_html=True)
     auto_refresh = st.toggle("Refresh auto (5 min)", value=False)
     if auto_refresh:
         st.caption("⚡ Les prix se mettent à jour automatiquement")
@@ -276,16 +470,34 @@ else:
 # ══════════════════════════════════════════════════════════════════════════════
 
 tab1, tab2, tab3, tab4 = st.tabs([
-    "📊 Dashboard", "🔬 Deal Pricer", "💼 Portefeuille", "🧠 Modèles"
+    "DASHBOARD", "DEAL PRICER", "PORTEFEUILLE", "MODÈLES"
 ])
 
+def bbg_title(text, sub=""):
+    st.markdown(
+        f"<div style='font-family:Consolas,monospace;font-size:18px;font-weight:700;"
+        f"color:#FF6600;letter-spacing:2px;margin-bottom:2px'>{text}</div>"
+        f"<div style='font-size:10px;color:#555;letter-spacing:1px;margin-bottom:12px'>{sub}</div>",
+        unsafe_allow_html=True)
+
+def bbg_section(text):
+    st.markdown(f"<div class='bbg-section'>{text}</div>", unsafe_allow_html=True)
+
+def bbg_metric(label, value, sub="", color=""):
+    col_style = f"color:{color}" if color else ""
+    st.markdown(
+        f"<div class='bbg-card'>"
+        f"<div class='bbg-card-label'>{label}</div>"
+        f"<div class='bbg-card-value' style='{col_style}'>{value}</div>"
+        f"<div class='bbg-card-sub'>{sub}</div>"
+        f"</div>", unsafe_allow_html=True)
 
 # ────────────────────────────────────────────────────────────────────────────
 # TAB 1 — DASHBOARD
 # ────────────────────────────────────────────────────────────────────────────
 
 with tab1:
-    st.markdown("## 📊 M&A Monitor — Deals Live")
+    bbg_title("M&A MONITOR", "NORTH AMERICA · LIVE MARKET DATA")
 
     col_ctrl1, col_ctrl2, col_ctrl3, col_ctrl4 = st.columns(4)
     with col_ctrl1:
@@ -385,51 +597,66 @@ with tab1:
             )
             df_show = df_res[mask].sort_values("_signal_score", ascending=False)
 
-            # KPIs globaux
+            # KPIs globaux — style Bloomberg cards
+            bbg_section("SUMMARY")
             k1, k2, k3, k4, k5 = st.columns(5)
-            k1.metric("Deals analysés", len(df_show))
-            k2.metric("Strong Buy + Buy",
-                      len(df_show[df_show["Signal"].isin(["STRONG BUY","BUY"])]))
-            k3.metric("Spread moyen", f"{df_show['Spread %'].mean():.1f}%")
-            k4.metric("Rdt ann. moyen", f"{df_show['Rdt ann. %'].mean():.1f}%")
-            k5.metric("P(close) moyen", f"{df_show['P(close)'].mean():.0f}%")
+            with k1: bbg_metric("DEALS ANALYSÉS", len(df_show))
+            with k2: bbg_metric("STRONG BUY / BUY",
+                      len(df_show[df_show["Signal"].isin(["STRONG BUY","BUY"])]),
+                      color="#00c853")
+            with k3: bbg_metric("SPREAD MOYEN", f"{df_show['Spread %'].mean():.1f}%",
+                      color="#FF6600")
+            with k4: bbg_metric("RDT ANN. MOYEN", f"{df_show['Rdt ann. %'].mean():.1f}%",
+                      color="#00c853")
+            with k5: bbg_metric("P(CLOSE) MOYEN", f"{df_show['P(close)'].mean():.0f}%")
 
             st.divider()
+            bbg_section("OPPORTUNITY MAP — RENDEMENT vs P(CLOSE)")
 
-            # Graphique scatter: Spread vs P(close)
+            # Graphique scatter Bloomberg style
             fig_scatter = px.scatter(
                 df_show,
                 x="P(close)", y="Rdt ann. %",
                 size="Spread %",
                 color="Signal",
-                color_discrete_map={"STRONG BUY":"#00d4aa","BUY":"#54c768",
-                                     "HOLD":"#f5a623","PASS":"#e05c5c"},
+                color_discrete_map={"STRONG BUY":"#00c853","BUY":"#69f0ae",
+                                     "HOLD":"#FF6600","PASS":"#ff1744"},
                 text="Ticker",
-                title="Rendement annualisé vs P(close) — taille = spread brut",
                 template="plotly_dark",
-                height=400,
+                height=380,
             )
-            fig_scatter.update_traces(textposition="top center", textfont_size=9)
-            fig_scatter.update_layout(margin=dict(l=40,r=40,t=50,b=40))
+            fig_scatter.update_traces(textposition="top center",
+                                      textfont=dict(size=9, color="#aaa", family="Consolas"))
+            fig_scatter.update_layout(
+                margin=dict(l=40,r=40,t=20,b=40),
+                paper_bgcolor="#0a0a0a", plot_bgcolor="#0d0d0d",
+                font=dict(family="Consolas", color="#888", size=10),
+                xaxis=dict(gridcolor="#1a1a1a", title="P(CLOSE) %",
+                           title_font=dict(color="#FF6600", size=10)),
+                yaxis=dict(gridcolor="#1a1a1a", title="RDT ANNUALISÉ %",
+                           title_font=dict(color="#FF6600", size=10)),
+                legend=dict(bgcolor="#111", bordercolor="#333", font=dict(size=9)),
+            )
             st.plotly_chart(fig_scatter, use_container_width=True)
 
             st.divider()
+            bbg_section("DEAL SCREEN")
 
-            # Tableau principal avec couleurs
+            # Tableau principal
             display_cols = ["Ticker","Nom","Type","Consid.","Jours","Spot ($)",
                             "Spread %","Rdt ann. %","P(close)","E[P&L] ($)",
                             "Kelly %","Rég. Score","Signal"]
 
             def color_signal(val):
-                colors = {"STRONG BUY":"background-color:#003d2e;color:#00d4aa;font-weight:800",
-                          "BUY":"background-color:#1a3d22;color:#54c768;font-weight:700",
-                          "HOLD":"background-color:#3d2e00;color:#f5a623;font-weight:700",
-                          "PASS":"background-color:#3d1a1a;color:#e05c5c;font-weight:700"}
+                colors = {"STRONG BUY":"background-color:#001a0d;color:#00c853;font-weight:800",
+                          "BUY":"background-color:#001208;color:#69f0ae;font-weight:700",
+                          "HOLD":"background-color:#1a0d00;color:#FF6600;font-weight:700",
+                          "PASS":"background-color:#1a0000;color:#ff1744;font-weight:700"}
                 return colors.get(val, "")
 
             def color_spread(val):
-                if val > 10: return "color:#f5a623"
-                if val > 5:  return "color:#54c768"
+                if val > 10: return "color:#FF6600;font-weight:700"
+                if val > 5:  return "color:#00c853"
                 return "color:#888"
 
             styled = (df_show[display_cols]
@@ -469,12 +696,12 @@ with tab1:
 # ────────────────────────────────────────────────────────────────────────────
 
 with tab2:
-    st.markdown("## 🔬 Deal Pricer — Analyse détaillée")
+    bbg_title("DEAL PRICER", "FULL ANALYSIS · ALL MODELS · LIVE DATA")
 
     col_in1, col_in2 = st.columns([1, 2])
 
     with col_in1:
-        st.markdown("### 📋 Paramètres du deal")
+        bbg_section("DEAL PARAMETERS")
         ticker_input = st.text_input("Ticker cible", value="MSFT").upper().strip()
         deal_price_in = st.number_input("Prix deal / offre ($)", value=80.00, step=0.5)
         event_type = st.selectbox("Type d'événement",
@@ -520,56 +747,81 @@ with tab2:
                 res = MasterPricer.price(deal, kelly_cap=kelly_cap, kelly_frac=kelly_frac)
 
                 # Signal banner
-                sig_col = signal_color(res.signal)
+                # Bloomberg signal bar
+                sig_colors = {"STRONG BUY":"#00c853","BUY":"#69f0ae",
+                              "HOLD":"#FF6600","PASS":"#ff1744"}
+                sig_col = sig_colors.get(res.signal, "#888")
+                friendly_str = "FRIENDLY" if friendly_in else "HOSTILE"
+                name_str = info_live.get('name', ticker_input).upper()[:35]
                 st.markdown(
-                    f"""<div style='background:{sig_col}22;border-left:5px solid {sig_col};
-                    padding:12px 18px;border-radius:8px;margin-bottom:16px'>
-                    <span style='color:{sig_col};font-size:22px;font-weight:800'>
-                    {signal_badge(res.signal)}</span>
-                    &nbsp;&nbsp;
-                    <span style='color:#ccc;font-size:14px'>
-                    {info_live.get('name', ticker_input)} | {event_type.upper()} |
-                    {'Friendly' if friendly_in else 'Hostile'} | {consid_in}
-                    </span></div>""",
-                    unsafe_allow_html=True,
-                )
+                    f"<div style='background:#111;border:1px solid {sig_col};"
+                    f"border-left:4px solid {sig_col};padding:10px 16px;"
+                    f"font-family:Consolas,monospace;margin-bottom:12px'>"
+                    f"<span style='color:{sig_col};font-size:16px;font-weight:700;"
+                    f"letter-spacing:2px'>{res.signal}</span>"
+                    f"<span style='color:#555;margin:0 12px'>|</span>"
+                    f"<span style='color:#ccc;font-size:12px'>{ticker_input} &nbsp;·&nbsp; "
+                    f"{name_str} &nbsp;·&nbsp; {event_type.upper()} &nbsp;·&nbsp; "
+                    f"{friendly_str} &nbsp;·&nbsp; {consid_in}</span>"
+                    f"<span style='float:right;color:#555;font-size:10px'>"
+                    f"SCORE: {res.signal_score:.1f}/5</span>"
+                    f"</div>",
+                    unsafe_allow_html=True)
 
-                # KPIs principaux
+                # KPIs principaux — Bloomberg cards
+                bbg_section("KEY METRICS")
                 c1,c2,c3,c4,c5,c6 = st.columns(6)
-                c1.metric("Spot", f"${spot_live:.2f}")
-                c2.metric("Spread brut",
+                with c1: bbg_metric("SPOT", f"${spot_live:.2f}")
+                with c2: bbg_metric("SPREAD",
                           f"${res.gross_spread:.2f}",
-                          f"{res.gross_spread_pct*100:.2f}%")
-                c3.metric("Rdt ann.", f"{res.annualized_return*100:.1f}%")
-                c4.metric("P(close)", f"{res.p_close_final*100:.1f}%",
-                          res.prob_source)
-                c5.metric("Fair Value", f"${res.fair_value:.2f}",
-                          f"{res.premium_to_fair:+.2f}$ vs spot")
-                c6.metric("Kelly sizing", f"{res.kelly_fraction*100:.1f}%")
+                          f"{res.gross_spread_pct*100:.2f}%",
+                          "#FF6600" if res.gross_spread > 0 else "#ff1744")
+                with c3: bbg_metric("RDT ANN.",
+                          f"{res.annualized_return*100:.1f}%",
+                          color="#00c853" if res.annualized_return > 0.05 else "#FF6600")
+                with c4: bbg_metric("P(CLOSE)",
+                          f"{res.p_close_final*100:.1f}%",
+                          res.prob_source[:12])
+                with c5: bbg_metric("FAIR VALUE",
+                          f"${res.fair_value:.2f}",
+                          f"{res.premium_to_fair:+.2f}$ vs spot",
+                          "#00c853" if res.premium_to_fair >= 0 else "#ff1744")
+                with c6: bbg_metric("KELLY",
+                          f"{res.kelly_fraction*100:.1f}%",
+                          "HALF-KELLY CAPPED")
 
                 st.divider()
 
                 left, right = st.columns(2)
 
                 with left:
-                    # Graphique prix + deal + break
+                    bbg_section(f"PRICE CHART — {ticker_input} 3M")
                     fig_price = go.Figure()
                     if not hist_live.empty:
                         fig_price.add_trace(go.Scatter(
                             x=hist_live.index, y=hist_live["Close"],
-                            name="Cours", line=dict(color="#4c78a8", width=2)))
+                            name="PRICE", line=dict(color="#FF6600", width=1.5),
+                            fill="tozeroy", fillcolor="rgba(255,102,0,0.05)"))
                     fig_price.add_hline(y=deal_price_in, line_dash="dash",
-                                        line_color="#00d4aa",
-                                        annotation_text=f"Deal ${deal_price_in:.2f}")
-                    fig_price.add_hline(y=bp, line_dash="dash", line_color="#e05c5c",
-                                        annotation_text=f"Break ${bp:.2f}")
+                                        line_color="#00c853", line_width=1,
+                                        annotation_text=f"DEAL ${deal_price_in:.2f}",
+                                        annotation_font=dict(color="#00c853", size=9))
+                    fig_price.add_hline(y=bp, line_dash="dash", line_color="#ff1744",
+                                        line_width=1,
+                                        annotation_text=f"BREAK ${bp:.2f}",
+                                        annotation_font=dict(color="#ff1744", size=9))
                     fig_price.add_hline(y=res.fair_value, line_dash="dot",
-                                        line_color="#f5a623",
-                                        annotation_text=f"Fair Value ${res.fair_value:.2f}")
+                                        line_color="#FF6600", line_width=1,
+                                        annotation_text=f"FV ${res.fair_value:.2f}",
+                                        annotation_font=dict(color="#FF6600", size=9))
                     fig_price.update_layout(
-                        title=f"{ticker_input} — Prix 3 mois",
                         template="plotly_dark", height=300,
-                        margin=dict(l=40,r=40,t=50,b=40))
+                        paper_bgcolor="#0a0a0a", plot_bgcolor="#0d0d0d",
+                        font=dict(family="Consolas", color="#666", size=9),
+                        xaxis=dict(gridcolor="#1a1a1a", showgrid=True),
+                        yaxis=dict(gridcolor="#1a1a1a"),
+                        margin=dict(l=40,r=60,t=10,b=30),
+                        showlegend=False)
                     st.plotly_chart(fig_price, use_container_width=True)
 
                     # Scénarios P&L
